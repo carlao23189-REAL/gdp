@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Global Dollar Pressure v7</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;background:#050a0f;font-family:'Share Tech Mono',monospace}
+#app{height:100vh;display:flex;flex-direction:column}
+
+/* HEADER */
+.hdr{padding:6px 12px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #0d2030;background:#090f16;flex-shrink:0}
+.logo{font-size:9px;color:#3a5060;letter-spacing:2px}
+.logo b{color:#00aaff}
+.hdr-right{display:flex;align-items:center;gap:8px}
+.hdr-val{font-size:16px;font-weight:bold;letter-spacing:2px;transition:all .4s}
+.hdr-val.up{color:#00ff88;text-shadow:0 0 12px rgba(0,255,136,.6)}
+.hdr-val.dn{color:#ff2255;text-shadow:0 0 12px rgba(255,34,85,.6)}
+.hdr-val.nu{color:#3a5060}
+.hdr-dir{font-size:10px;letter-spacing:3px;transition:color .4s}
+.hdr-dir.up{color:#00ff88}.hdr-dir.dn{color:#ff2255}.hdr-dir.nu{color:#3a5060}
+.dot{width:6px;height:6px;border-radius:50%;background:#00ff88;box-shadow:0 0 6px #00ff88;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* PLACAR */
+.placar{display:flex;align-items:center;gap:4px;padding:4px 10px;border-bottom:1px solid #0d2030;flex-shrink:0;background:#090f16}
+.pl-label{font-size:8px;color:#3a5060;letter-spacing:1px;margin-right:2px}
+.pl-box{display:flex;align-items:center;gap:4px;padding:3px 8px;border-radius:3px}
+.pl-box.up{background:rgba(0,255,136,.08);border:1px solid rgba(0,255,136,.25)}
+.pl-box.dn{background:rgba(255,34,85,.08);border:1px solid rgba(255,34,85,.25)}
+.pl-box.nu{background:rgba(58,80,96,.08);border:1px solid rgba(58,80,96,.2)}
+.pl-num{font-size:17px;font-weight:bold;line-height:1}
+.pl-box.up .pl-num{color:#00ff88}
+.pl-box.dn .pl-num{color:#ff2255}
+.pl-box.nu .pl-num{color:#3a5060}
+.pl-txt{font-size:8px;letter-spacing:1px}
+.pl-box.up .pl-txt{color:#00ff88}
+.pl-box.dn .pl-txt{color:#ff2255}
+.pl-box.nu .pl-txt{color:#3a5060}
+.pl-bar{flex:1;height:7px;background:#0d2030;border-radius:4px;overflow:hidden;display:flex;margin-left:4px}
+.pl-bar-up{height:100%;background:linear-gradient(90deg,#00ff88,#00cc66);transition:width .6s}
+.pl-bar-dn{height:100%;background:linear-gradient(90deg,#cc0033,#ff2255);transition:width .6s}
+
+/* MENU */
+.menu{display:flex;gap:3px;padding:4px 8px;border-bottom:1px solid #0d2030;background:#090f16;flex-shrink:0}
+.mb{font-size:8px;letter-spacing:1px;padding:4px 9px;border-radius:3px;cursor:pointer;border:1px solid #0d2030;color:#3a5060;background:transparent;transition:all .2s;font-family:'Share Tech Mono',monospace}
+.mb:hover{border-color:#3a5060;color:#c8dde8}
+.mb.on{background:#0d2030;color:#00aaff;border-color:#00aaff}
+
+/* AREA PRINCIPAL */
+.main{flex:1;min-height:0;display:flex;flex-direction:column}
+
+/* VIEW OSC — linha única verde/vermelha/zero */
+#view-osc{flex:1;padding:4px;min-height:0;display:flex;flex-direction:column}
+#view-osc canvas{flex:1;min-height:0}
+
+/* VIEW BARRAS */
+#view-bar{flex:1;padding:5px 8px;overflow-y:auto;display:none;flex-direction:column;gap:3px}
+.bar-row{display:flex;align-items:center;gap:5px;height:20px}
+.bar-tk{font-size:8px;color:#3a5060;width:40px;text-align:right;flex-shrink:0}
+.bar-track{flex:1;height:9px;background:#0d2030;border-radius:2px;position:relative;overflow:hidden}
+.bar-zero-mark{position:absolute;left:50%;top:0;bottom:0;width:1px;background:rgba(255,255,255,.25);z-index:1}
+.bar-fill{position:absolute;top:0;height:100%;border-radius:2px;transition:all .5s}
+.bar-fill.pos{background:linear-gradient(90deg,rgba(0,255,136,.3),#00ff88)}
+.bar-fill.neg{background:linear-gradient(270deg,rgba(255,34,85,.3),#ff2255)}
+.bar-fill.neu{background:#3a5060}
+.bar-pct{font-size:8px;width:44px;flex-shrink:0;transition:color .4s}
+.bar-pct.pos{color:#00ff88}.bar-pct.neg{color:#ff2255}.bar-pct.neu{color:#3a5060}
+
+/* VIEW CARDS */
+#view-cards{flex:1;padding:4px;overflow-y:auto;display:none;flex-wrap:wrap;gap:3px;align-content:flex-start}
+.card{width:calc(50% - 2px);background:#090f16;border:1px solid #0d2030;border-radius:3px;padding:5px 7px}
+.card.pos{border-left:2px solid #00ff88}
+.card.neg{border-left:2px solid #ff2255}
+.card.neu{border-left:2px solid #3a5060}
+.c-tk{font-size:9px;color:#00aaff;letter-spacing:1px}
+.c-nm{font-size:8px;color:#3a5060}
+.c-vr{font-size:12px;font-weight:bold;margin-top:1px}
+.c-vr.pos{color:#00ff88}.c-vr.neg{color:#ff2255}.c-vr.neu{color:#3a5060}
+.c-imp{font-size:8px;color:#3a5060}
+
+/* STATUS */
+.status{display:flex;justify-content:space-between;align-items:center;padding:3px 10px;background:#090f16;border-top:1px solid #0d2030;flex-shrink:0}
+.st{font-size:8px;color:#3a5060}
+.pw{width:50px;height:2px;background:#1a2a3a;border-radius:2px;overflow:hidden}
+.pb{height:100%;background:#00aaff;width:0%;transition:width 1s linear}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div class="hdr">
+    <span class="logo">GLOBAL <b>DOLLAR</b> PRESSURE</span>
+    <div class="hdr-right">
+      <span class="hdr-dir nu" id="dir">CALCULANDO</span>
+      <span class="hdr-val nu" id="val">---</span>
+      <span class="dot"></span>
+    </div>
+  </div>
+
+  <div class="placar">
+    <span class="pl-label">ATIVOS</span>
+    <div class="pl-box up"><span class="pl-num" id="n-up">0</span><span class="pl-txt">▲ALTA</span></div>
+    <div class="pl-box dn"><span class="pl-num" id="n-dn">0</span><span class="pl-txt">▼BAIXA</span></div>
+    <div class="pl-box nu"><span class="pl-num" id="n-nu">0</span><span class="pl-txt">◆NEU</span></div>
+    <div class="pl-bar">
+      <div class="pl-bar-up" id="prog-up" style="width:50%"></div>
+      <div class="pl-bar-dn" id="prog-dn" style="width:50%"></div>
+    </div>
+  </div>
+
+  <div class="menu">
+    <button class="mb on" onclick="setView('osc')">📈 OSCILADOR</button>
+    <button class="mb"    onclick="setView('bar')">▬ BARRAS</button>
+    <button class="mb"    onclick="setView('cards')">⊞ CARDS</button>
+  </div>
+
+  <div class="main">
+
+    <!-- VIEW: OSCILADOR (linha verde/zero/vermelha) -->
+    <div id="view-osc" style="position:relative">
+      <canvas id="ch-osc"></canvas>
+      <div id="tip" style="
+        position:absolute;
+        right:48px;
+        top:50%;
+        transform:translateY(-50%);
+        font-family:'Share Tech Mono',monospace;
+        font-size:13px;
+        font-weight:bold;
+        letter-spacing:2px;
+        padding:3px 8px;
+        border-radius:3px;
+        border-left:3px solid #00ff88;
+        background:rgba(5,10,15,0.85);
+        pointer-events:none;
+        transition:top .3s, color .3s, border-color .3s;
+        white-space:nowrap;
+      ">---</div>
+    </div>
+
+    <!-- VIEW: BARRAS -->
+    <div id="view-bar"></div>
+
+    <!-- VIEW: CARDS -->
+    <div id="view-cards"></div>
+
+  </div>
+
+  <div class="status">
+    <span class="st" id="lu">--:--:--</span>
+    <div class="pw"><div class="pb" id="pgb"></div></div>
+    <span class="st" id="nx">5s</span>
+  </div>
+
+</div>
+<script>
+var A=[
+  {t:'DXY',   n:'Dollar Index',   p:18,c:+1,b:104.5,  v:0.15, x:104.5 },
+  {t:'EURUSD',n:'Euro/Dolar',     p:14,c:-1,b:1.082,  v:0.002,x:1.082  },
+  {t:'USDBRL',n:'Dolar/Real',     p:12,c:+1,b:5.72,   v:0.03, x:5.72   },
+  {t:'VIX',   n:'Ind. Medo',      p:8, c:+1,b:18.2,   v:0.5,  x:18.2   },
+  {t:'TNX10Y',n:'Treasury 10Y',   p:9, c:+1,b:4.35,   v:0.03, x:4.35   },
+  {t:'TNX2Y', n:'Treasury 2Y',    p:7, c:+1,b:4.72,   v:0.03, x:4.72   },
+  {t:'XAUUSD',n:'Ouro',           p:10,c:-1,b:2340,   v:5,    x:2340   },
+  {t:'SP500', n:'S&P 500',        p:9, c:+1,b:5200,   v:20,   x:5200   },
+  {t:'USOIL', n:'Petroleo WTI',   p:6, c:-1,b:78.4,   v:0.4,  x:78.4   },
+  {t:'BTCUSD',n:'Bitcoin',        p:5, c:-1,b:67000,  v:800,  x:67000  },
+  {t:'USDJPY',n:'Dolar/Iene',     p:10,c:+1,b:149.8,  v:0.2,  x:149.8  },
+  {t:'NASDAQ',n:'Nasdaq 100',     p:8, c:+1,b:18200,  v:80,   x:18200  },
+  {t:'GBPUSD',n:'Libra/Dolar',    p:6, c:-1,b:1.265,  v:0.003,x:1.265  },
+  {t:'USDCHF',n:'Dolar/Franco',   p:6, c:+1,b:0.893,  v:0.002,x:0.893  },
+  {t:'XAGUSD',n:'Prata',          p:5, c:-1,b:27.5,   v:0.15, x:27.5   },
+  {t:'COPPER',n:'Cobre',          p:4, c:-1,b:4.15,   v:0.02, x:4.15   },
+  {t:'NATGAS',n:'Gas Natural',    p:3, c:-1,b:2.8,    v:0.05, x:2.8    },
+  {t:'SOJA',  n:'Soja',           p:3, c:-1,b:12.5,   v:0.1,  x:12.5   },
+  {t:'IBOV',  n:'Ibovespa',       p:4, c:+1,b:128000, v:500,  x:128000 },
+  {t:'EMBI',  n:'Risco Brasil',   p:3, c:+1,b:185,    v:2,    x:185    },
+];
+
+var hist=[],dr=0,pi=null,chartOsc=null,currentView='osc',MAXH=80;
+
+function sim(){
+  dr=dr*0.95+(Math.random()-0.5)*0.06;
+  dr=Math.max(-0.25,Math.min(0.25,dr));
+  A.forEach(function(a){
+    var m=(Math.random()-0.5)*2*a.v+dr*a.v*0.4;
+    a.x=Math.max(a.b*0.75,Math.min(a.b*1.25,a.x+m));
+  });
+}
+
+function calc(){
+  var soma=0;
+  A.forEach(function(a){soma+=(a.x/a.b-1)*100*a.c*a.p/100;});
+  var n=hist.length;
+  var s=n>=2?(soma+hist[n-1]+hist[n-2])/3:soma;
+  if(hist.length>=MAXH)hist.shift();
+  hist.push(s);
+  return s;
+}
+
+function display(p){
+  var v=document.getElementById('val');
+  var d=document.getElementById('dir');
+  v.textContent=(p>=0?'+':'')+p.toFixed(4);
+  if(p>0.05){v.className='hdr-val up';d.className='hdr-dir up';d.textContent='▲ DOLAR ALTA';}
+  else if(p<-0.05){v.className='hdr-val dn';d.className='hdr-dir dn';d.textContent='▼ DOLAR BAIXA';}
+  else{v.className='hdr-val nu';d.className='hdr-dir nu';d.textContent='◆ NEUTRO';}
+}
+
+function upPlacar(){
+  var up=0,dn=0,nu=0;
+  A.forEach(function(a){
+    var ef=(a.x/a.b-1)*100*a.c;
+    if(ef>0.01)up++; else if(ef<-0.01)dn++; else nu++;
+  });
+  document.getElementById('n-up').textContent=up;
+  document.getElementById('n-dn').textContent=dn;
+  document.getElementById('n-nu').textContent=nu;
+  var tot=A.length;
+  document.getElementById('prog-up').style.width=(up/tot*100)+'%';
+  document.getElementById('prog-dn').style.width=(dn/tot*100)+'%';
+}
+
+// ── OSCILADOR: 3 linhas — VERDE, ZERO (branca), VERMELHA ───────
+function upOsc(){
+  if(!chartOsc)return;
+  var labels=hist.map(function(_,i){return i;});
+  var verde=hist.map(function(v){return v>=0?v:null;});
+  var verm =hist.map(function(v){return v<0 ?v:null;});
+  var zero =hist.map(function(){return 0;});
+  // conecta no zero na troca de sinal
+  for(var i=1;i<hist.length;i++){
+    if(hist[i-1]>=0&&hist[i]<0){verde[i]=0;}
+    if(hist[i-1]<0&&hist[i]>=0){verm[i]=0;}
+  }
+  chartOsc.data.labels=labels;
+  chartOsc.data.datasets[0].data=verde;
+  chartOsc.data.datasets[1].data=verm;
+  chartOsc.data.datasets[2].data=zero;
+  chartOsc.update('none');
+  updateTip();
+}
+
+function updateTip(){
+  if(!chartOsc||!chartOsc.chartArea)return;
+  var p=hist.length>0?hist[hist.length-1]:0;
+  var tip=document.getElementById('tip');
+  if(!tip)return;
+
+  // Calcula posicao Y da ponta no canvas
+  var yScale=chartOsc.scales.y;
+  var yPix=yScale.getPixelForValue(p);
+  var canvasTop=chartOsc.canvas.offsetTop||0;
+  var totalH=chartOsc.canvas.offsetHeight||200;
+  var pct=(yPix/totalH)*100;
+  pct=Math.max(5,Math.min(92,pct));
+
+  tip.style.top=pct+'%';
+
+  if(p>0.05){
+    tip.style.color='#00ff88';
+    tip.style.borderColor='#00ff88';
+    tip.style.background='rgba(0,20,10,0.9)';
+    tip.textContent='+'+p.toFixed(4);
+  } else if(p<-0.05){
+    tip.style.color='#ff2255';
+    tip.style.borderColor='#ff2255';
+    tip.style.background='rgba(20,0,8,0.9)';
+    tip.textContent=p.toFixed(4);
+  } else {
+    tip.style.color='#3a5060';
+    tip.style.borderColor='#3a5060';
+    tip.style.background='rgba(5,10,15,0.9)';
+    tip.textContent='0.0000';
+  }
+}
+
+// ── BARRAS ─────────────────────────────────────────────────────
+function upBars(){
+  var el=document.getElementById('view-bar');
+  el.innerHTML='';
+  var sorted=A.slice().sort(function(a,b){
+    return Math.abs((b.x/b.b-1)*b.c)-Math.abs((a.x/a.b-1)*a.c);
+  });
+  sorted.forEach(function(a){
+    var v=(a.x/a.b-1)*100;
+    var ef=v*a.c;
+    var vc=ef>0.01?'pos':ef<-0.01?'neg':'neu';
+    var pct=Math.min(Math.abs(v)*10,48);
+    var leftPos=ef>=0?'50%':'calc(50% - '+pct+'%)';
+    el.innerHTML+='<div class="bar-row">'+
+      '<span class="bar-tk">'+a.t+'</span>'+
+      '<div class="bar-track">'+
+        '<div class="bar-zero-mark"></div>'+
+        '<div class="bar-fill '+vc+'" style="left:'+leftPos+';width:'+pct+'%"></div>'+
+      '</div>'+
+      '<span class="bar-pct '+vc+'">'+(ef>=0?'+':'')+ef.toFixed(2)+'%</span>'+
+    '</div>';
+  });
+}
+
+// ── CARDS ──────────────────────────────────────────────────────
+function upCards(){
+  var el=document.getElementById('view-cards');
+  el.innerHTML='';
+  A.forEach(function(a){
+    var v=(a.x/a.b-1)*100;
+    var co=v*a.c*a.p/100;
+    var ef=v*a.c;
+    var vc=ef>0.01?'pos':ef<-0.01?'neg':'neu';
+    var s=v>=0?'+':'';
+    el.innerHTML+='<div class="card '+vc+'">'+
+      '<div class="c-tk">'+a.t+'</div>'+
+      '<div class="c-nm">'+a.n+'</div>'+
+      '<div class="c-vr '+vc+'">'+s+v.toFixed(3)+'%</div>'+
+      '<div class="c-imp">impact: '+(co>=0?'+':'')+co.toFixed(4)+'</div>'+
+    '</div>';
+  });
+}
+
+function upStatus(){
+  document.getElementById('lu').textContent=new Date().toLocaleTimeString('pt-BR');
+  clearInterval(pi);
+  var bar=document.getElementById('pgb');
+  bar.style.width='0%';
+  var e=0,cd=5;
+  pi=setInterval(function(){
+    e++;cd--;
+    bar.style.width=(e/5*100)+'%';
+    document.getElementById('nx').textContent=cd+'s';
+    if(e>=5)clearInterval(pi);
+  },1000);
+}
+
+function setView(v){
+  currentView=v;
+  document.getElementById('view-osc').style.display=v==='osc'?'flex':'none';
+  document.getElementById('view-bar').style.display=v==='bar'?'flex':'none';
+  document.getElementById('view-cards').style.display=v==='cards'?'flex':'none';
+  document.querySelectorAll('.mb').forEach(function(b,i){
+    b.className='mb'+(['osc','bar','cards'][i]===v?' on':'');
+  });
+  if(v==='osc')upOsc();
+  if(v==='bar')upBars();
+  if(v==='cards')upCards();
+}
+
+function initOsc(){
+  var ctx=document.getElementById('ch-osc').getContext('2d');
+  chartOsc=new Chart(ctx,{
+    type:'line',
+    data:{labels:[],datasets:[
+      // VERDE — alta
+      {
+        label:'Alta',data:[],
+        borderColor:'#00ff88',
+        backgroundColor:function(c){
+          var ch=c.chart;
+          if(!ch.chartArea)return 'rgba(0,255,136,0.15)';
+          var yZ=ch.scales.y.getPixelForValue(0);
+          var g=ch.ctx.createLinearGradient(0,ch.chartArea.top,0,yZ);
+          g.addColorStop(0,'rgba(0,255,136,0.28)');
+          g.addColorStop(1,'rgba(0,255,136,0.02)');
+          return g;
+        },
+        borderWidth:2.5,pointRadius:0,tension:0.35,fill:'origin',spanGaps:false
+      },
+      // VERMELHA — baixa
+      {
+        label:'Baixa',data:[],
+        borderColor:'#ff2255',
+        backgroundColor:function(c){
+          var ch=c.chart;
+          if(!ch.chartArea)return 'rgba(255,34,85,0.15)';
+          var yZ=ch.scales.y.getPixelForValue(0);
+          var g=ch.ctx.createLinearGradient(0,yZ,0,ch.chartArea.bottom);
+          g.addColorStop(0,'rgba(255,34,85,0.02)');
+          g.addColorStop(1,'rgba(255,34,85,0.28)');
+          return g;
+        },
+        borderWidth:2.5,pointRadius:0,tension:0.35,fill:'origin',spanGaps:false
+      },
+      // ZERO — branca tracejada
+      {
+        label:'Zero',data:[],
+        borderColor:'rgba(255,255,255,0.35)',
+        backgroundColor:'transparent',
+        borderWidth:1.2,borderDash:[6,5],
+        pointRadius:0,tension:0,fill:false
+      }
+    ]},
+    options:{
+      responsive:true,maintainAspectRatio:false,animation:{duration:280},
+      interaction:{mode:'index',intersect:false},
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          backgroundColor:'#090f16',borderColor:'#0d2030',borderWidth:1,
+          titleColor:'#00aaff',bodyColor:'#c8dde8',
+          titleFont:{family:'Share Tech Mono',size:9},bodyFont:{family:'Share Tech Mono',size:9},
+          filter:function(i){return i.datasetIndex<2&&i.raw!==null;},
+          callbacks:{
+            title:function(){return 'PRESSAO DOLAR';},
+            label:function(c){
+              if(c.raw===null)return null;
+              return c.raw>=0?' ▲ WDO COMPRA / WIN VENDE: +'+c.raw.toFixed(4):' ▼ WDO VENDE / WIN COMPRA: '+c.raw.toFixed(4);
+            }
+          }
+        }
+      },
+      scales:{
+        x:{display:false},
+        y:{
+          display:true,position:'right',
+          ticks:{color:'#3a5060',font:{family:'Share Tech Mono',size:8},callback:function(v){return v.toFixed(2);}},
+          grid:{
+            color:function(c){return(c.tick&&c.tick.value===0)?'rgba(255,255,255,0.15)':'rgba(13,32,48,0.8)';},
+            lineWidth:function(c){return(c.tick&&c.tick.value===0)?1.5:1;}
+          },
+          border:{display:false}
+        }
+      }
+    }
+  });
+}
+
+function tick(){
+  sim();
+  var p=calc();
+  display(p);
+  upPlacar();
+  if(currentView==='osc')upOsc();
+  if(currentView==='bar')upBars();
+  if(currentView==='cards')upCards();
+  upStatus();
+}
+
+window.onload=function(){
+  initOsc();
+  tick();
+  setInterval(tick,5000);
+};
+</script>
+</body>
+</html>
