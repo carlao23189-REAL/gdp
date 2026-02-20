@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gold Pressure Indicator v1</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;background:#0a0805;font-family:'Share Tech Mono',monospace}
+
+/* BACKGROUND GLOW */
+#bgGlow{position:fixed;inset:0;z-index:0;transition:background 1.5s;pointer-events:none}
+body.press-alta #bgGlow{background:radial-gradient(ellipse at 50% 50%,rgba(0,255,136,0.08) 0%,transparent 70%)}
+body.press-baixa #bgGlow{background:radial-gradient(ellipse at 50% 50%,rgba(255,34,85,0.08) 0%,transparent 70%)}
+
+#app{position:relative;z-index:1;height:100vh;display:flex;flex-direction:column}
+
+.hdr{padding:6px 12px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #1a2a3a;background:#0f0a05;flex-shrink:0}
+.logo{font-size:9px;color:#5a7060;letter-spacing:2px}
+.logo b{color:#00ff88}
+.logo .sub{color:#ff2255;font-size:7px;margin-left:4px}
+.hdr-right{display:flex;align-items:center;gap:8px}
+.hdr-val{font-size:16px;font-weight:bold;letter-spacing:2px;transition:all .4s}
+.hdr-val.up{color:#00ff88;text-shadow:0 0 12px rgba(0,255,136,.6)}
+.hdr-val.dn{color:#ff2255;text-shadow:0 0 12px rgba(255,34,85,.6)}
+.hdr-val.nu{color:#3a5060}
+.hdr-dir{font-size:10px;letter-spacing:3px;transition:color .4s}
+.hdr-dir.up{color:#00ff88}.hdr-dir.dn{color:#ff2255}.hdr-dir.nu{color:#3a5060}
+.dot{width:6px;height:6px;border-radius:50%;background:#00ff88;box-shadow:0 0 6px #00ff88;animation:pulse 2s infinite}
+.dot.off{background:#3a5060;box-shadow:none;animation:none}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* SETUP */
+#setupBox{margin:10px 12px;background:#0f0a05;border:1px solid #00ff88;border-radius:4px;padding:14px}
+#setupBox h2{font-size:10px;color:#00ff88;letter-spacing:2px;margin-bottom:8px}
+#setupBox p{font-size:10px;color:#5a7060;line-height:1.8;margin-bottom:10px}
+#setupBox a{color:#00ff88}
+.input-row{display:flex;gap:6px}
+#apiInput{flex:1;background:#1a1005;border:1px solid #1a2a3a;border-radius:3px;padding:7px 10px;font-family:'Share Tech Mono',monospace;font-size:11px;color:#00cc66;outline:none}
+#apiInput:focus{border-color:#00ff88}
+#apiBtn{background:#00ff88;color:#0a0805;border:none;border-radius:3px;padding:7px 14px;font-family:'Share Tech Mono',monospace;font-size:10px;font-weight:bold;cursor:pointer;letter-spacing:1px}
+#apiErr{font-size:10px;color:#ff2255;margin-top:6px;display:none}
+
+/* STRENGTH BOX */
+.strength-box{margin:0 12px 6px;background:#0f0a05;border:1px solid #1a2a3a;border-radius:4px;padding:8px 12px;display:none;align-items:center;justify-content:space-between}
+.str-label{font-size:8px;color:#5a7060;letter-spacing:2px}
+.str-bar{flex:1;height:8px;background:#1a1005;border-radius:4px;overflow:hidden;margin:0 10px;position:relative}
+.str-fill{position:absolute;height:100%;transition:all .8s;border-radius:4px}
+.str-fill.up{left:50%;background:linear-gradient(90deg,#00ff88,#00cc66);box-shadow:0 0 8px rgba(0,255,136,.4)}
+.str-fill.dn{right:50%;background:linear-gradient(270deg,#ff2255,#cc0033);box-shadow:0 0 8px rgba(255,34,85,.4)}
+.str-val{font-size:12px;font-weight:bold;min-width:60px;text-align:right}
+.str-val.up{color:#00ff88}.str-val.dn{color:#ff2255}.str-val.nu{color:#3a5060}
+
+.placar{display:none;align-items:center;gap:4px;padding:4px 10px;border-bottom:1px solid #1a2a3a;flex-shrink:0;background:#0f0a05}
+.pl-label{font-size:8px;color:#5a7060;letter-spacing:1px;margin-right:2px}
+.pl-box{display:flex;align-items:center;gap:4px;padding:3px 8px;border-radius:3px}
+.pl-box.up{background:rgba(0,255,136,.08);border:1px solid rgba(0,255,136,.25)}
+.pl-box.dn{background:rgba(255,34,85,.08);border:1px solid rgba(255,34,85,.25)}
+.pl-box.nu{background:rgba(90,74,42,.08);border:1px solid rgba(90,74,42,.2)}
+.pl-num{font-size:17px;font-weight:bold;line-height:1}
+.pl-box.up .pl-num{color:#00ff88}
+.pl-box.dn .pl-num{color:#ff2255}
+.pl-box.nu .pl-num{color:#3a5060}
+.pl-txt{font-size:8px;letter-spacing:1px}
+.pl-box.up .pl-txt{color:#00ff88}
+.pl-box.dn .pl-txt{color:#ff2255}
+.pl-box.nu .pl-txt{color:#3a5060}
+.pl-bar{flex:1;height:7px;background:#1a1005;border-radius:4px;overflow:hidden;display:flex;margin-left:4px}
+.pl-bar-up{height:100%;background:linear-gradient(90deg,#00ff88,#00cc66);transition:width .6s}
+.pl-bar-dn{height:100%;background:linear-gradient(90deg,#cc0033,#ff2255);transition:width .6s}
+
+.menu{display:none;gap:3px;padding:4px 8px;border-bottom:1px solid #1a2a3a;background:#0f0a05;flex-shrink:0}
+.mb{font-size:8px;letter-spacing:1px;padding:4px 9px;border-radius:3px;cursor:pointer;border:1px solid #1a2a3a;color:#5a7060;background:transparent;transition:all .2s;font-family:'Share Tech Mono',monospace}
+.mb:hover{border-color:#5a7060;color:#00cc66}
+.mb.on{background:#1a2a3a;color:#00ff88;border-color:#00ff88}
+
+.main{flex:1;min-height:0;display:flex;flex-direction:column}
+
+#view-osc{flex:1;padding:4px;min-height:0;display:none;flex-direction:column;position:relative}
+#view-osc canvas{flex:1;min-height:0}
+#tip{position:absolute;right:50px;top:50%;transform:translateY(-50%);font-size:13px;font-weight:bold;letter-spacing:2px;padding:3px 8px;border-radius:3px;border-left:3px solid #3a5060;background:rgba(10,8,5,0.9);pointer-events:none;transition:top .3s,color .3s,border-color .3s;white-space:nowrap;color:#3a5060}
+
+#view-bar{flex:1;padding:5px 8px;overflow-y:auto;display:none;flex-direction:column;gap:3px}
+.bar-row{display:flex;align-items:center;gap:5px;height:20px}
+.bar-tk{font-size:8px;color:#5a7060;width:50px;text-align:right;flex-shrink:0}
+.bar-track{flex:1;height:9px;background:#1a1005;border-radius:2px;position:relative;overflow:hidden}
+.bar-zero-mark{position:absolute;left:50%;top:0;bottom:0;width:1px;background:rgba(0,255,136,.25);z-index:1}
+.bar-fill{position:absolute;top:0;height:100%;border-radius:2px;transition:all .5s}
+.bar-fill.pos{background:linear-gradient(90deg,rgba(0,255,136,.3),#00ff88)}
+.bar-fill.neg{background:linear-gradient(270deg,rgba(255,34,85,.3),#ff2255)}
+.bar-fill.neu{background:#3a5060}
+.bar-pct{font-size:8px;width:52px;flex-shrink:0;transition:color .4s}
+.bar-pct.pos{color:#00ff88}.bar-pct.neg{color:#ff2255}.bar-pct.neu{color:#3a5060}
+
+#view-cards{flex:1;padding:4px;overflow-y:auto;display:none;flex-wrap:wrap;gap:3px;align-content:flex-start}
+.card{width:calc(50% - 2px);background:#0f0a05;border:1px solid #1a2a3a;border-radius:3px;padding:5px 7px}
+.card.pos{border-left:2px solid #00ff88}
+.card.neg{border-left:2px solid #ff2255}
+.card.neu{border-left:2px solid #3a5060}
+.c-tk{font-size:9px;color:#00ff88;letter-spacing:1px}
+.c-nm{font-size:8px;color:#5a7060}
+.c-vr{font-size:12px;font-weight:bold;margin-top:1px}
+.c-vr.pos{color:#00ff88}.c-vr.neg{color:#ff2255}.c-vr.neu{color:#3a5060}
+.c-imp{font-size:8px;color:#5a7060}
+.c-src{font-size:7px;color:#2a3a4a;margin-top:1px}
+
+.status{display:flex;justify-content:space-between;align-items:center;padding:3px 10px;background:#0f0a05;border-top:1px solid #1a2a3a;flex-shrink:0}
+.st{font-size:8px;color:#5a7060}
+.pw{width:50px;height:2px;background:#1a2a3a;border-radius:2px;overflow:hidden}
+.pb{height:100%;background:#00ff88;width:0%;transition:width 1s linear}
+
+/* ALERT FLASH */
+@keyframes flash-gold{0%,100%{background:rgba(0,255,136,0)}50%{background:rgba(0,255,136,0.15)}}
+@keyframes flash-brown{0%,100%{background:rgba(255,34,85,0)}50%{background:rgba(255,34,85,0.15)}}
+body.alert-alta #bgGlow{animation:flash-gold 0.8s 2}
+body.alert-baixa #bgGlow{animation:flash-brown 0.8s 2}
+</style>
+</head>
+<body>
+<div id="bgGlow"></div>
+<div id="app">
+
+  <div class="hdr">
+    <span class="logo">GOLD <b>PRESSURE</b> INDICATOR <span class="sub">XAU/USD</span></span>
+    <div class="hdr-right">
+      <span class="hdr-dir nu" id="dir">AGUARDANDO</span>
+      <span class="hdr-val nu" id="val">---</span>
+      <span class="dot off" id="dot"></span>
+    </div>
+  </div>
+
+  <!-- SETUP -->
+  <div id="setupBox">
+    <h2>API KEY — FINNHUB</h2>
+    <p>
+      Cadastro gratis em: <a href="https://finnhub.io" target="_blank">finnhub.io</a><br>
+      Sua chave: <strong style="color:#00ff88">d68r6chr01qq5rjginp0d68r6chr01qq5rjginpg</strong> (ja salva)<br>
+      Clique CONECTAR para iniciar dados reais.
+    </p>
+    <div class="input-row">
+      <input id="apiInput" type="text" placeholder="Cole sua API key aqui..." value="d68r6chr01qq5rjginp0d68r6chr01qq5rjginpg">
+      <button id="apiBtn" onclick="conectar()">CONECTAR</button>
+    </div>
+    <div id="apiErr"></div>
+  </div>
+
+  <!-- STRENGTH -->
+  <div class="strength-box" id="strengthBox">
+    <span class="str-label">FORÇA</span>
+    <div class="str-bar">
+      <div class="str-fill" id="strFill" style="width:0%"></div>
+    </div>
+    <span class="str-val nu" id="strVal">0%</span>
+  </div>
+
+  <div class="placar" id="placarEl">
+    <span class="pl-label">ATIVOS</span>
+    <div class="pl-box up"><span class="pl-num" id="n-up">0</span><span class="pl-txt">▲ALTA</span></div>
+    <div class="pl-box dn"><span class="pl-num" id="n-dn">0</span><span class="pl-txt">▼BAIXA</span></div>
+    <div class="pl-box nu"><span class="pl-num" id="n-nu">0</span><span class="pl-txt">◆NEU</span></div>
+    <div class="pl-bar">
+      <div class="pl-bar-up" id="prog-up" style="width:50%"></div>
+      <div class="pl-bar-dn" id="prog-dn" style="width:50%"></div>
+    </div>
+  </div>
+
+  <div class="menu" id="menuEl">
+    <button class="mb on" onclick="setView('osc')">📈 OSCILADOR</button>
+    <button class="mb"    onclick="setView('bar')">▬ BARRAS</button>
+    <button class="mb"    onclick="setView('cards')">⊞ CARDS</button>
+  </div>
+
+  <div class="main">
+    <div id="view-osc">
+      <canvas id="ch-osc"></canvas>
+      <div id="tip">---</div>
+    </div>
+    <div id="view-bar"></div>
+    <div id="view-cards"></div>
+  </div>
+
+  <div class="status">
+    <span class="st" id="lu">--:--:--</span>
+    <div class="pw"><div class="pb" id="pgb"></div></div>
+    <span class="st" id="nx">--</span>
+  </div>
+
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════
+// GOLD PRESSURE INDICATOR — 35 ATIVOS PREMIUM
+// Correlação: +1 = ouro sobe | -1 = ouro cai
+// ══════════════════════════════════════════════════════════════
+var A=[
+  // ── INIMIGOS DO OURO (140 pontos) — quando sobem, ouro CAI ──
+  {t:'DXY',   n:'Dollar Index',      p:30,c:-1,b:104.5, v:0,x:104.5, sym:'UUP',             tipo:'stock'},
+  {t:'USDJPY',n:'Dolar/Iene',        p:18,c:-1,b:149.8, v:0,x:149.8, sym:'OANDA:USD_JPY',   tipo:'forex'},
+  {t:'USDCHF',n:'Dolar/Franco',      p:16,c:-1,b:0.893, v:0,x:0.893, sym:'OANDA:USD_CHF',   tipo:'forex'},
+  {t:'USDBRL',n:'Dolar/Real',        p:14,c:-1,b:5.72,  v:0,x:5.72,  sym:'OANDA:USD_BRL',   tipo:'forex'},
+  {t:'TNX10Y',n:'Treasury 10Y',      p:20,c:-1,b:4.35,  v:0,x:4.35,  sym:'OANDA:US10Y_USD', tipo:'forex'},
+  {t:'TNX2Y', n:'Treasury 2Y',       p:16,c:-1,b:4.72,  v:0,x:4.72,  sym:'OANDA:US02Y_USD', tipo:'forex'},
+  {t:'SP500', n:'S&P 500',           p:12,c:-1,b:5200,  v:0,x:5200,  sym:'SPY',             tipo:'stock'},
+  {t:'NASDAQ',n:'Nasdaq',            p:10,c:-1,b:18200, v:0,x:18200, sym:'QQQ',             tipo:'stock'},
+  {t:'NIKKEI',n:'Nikkei 225',        p:4, c:-1,b:39000, v:0,x:39000, sym:'EWJ',             tipo:'stock'},
+  
+  // ── AMIGOS DO OURO (110 pontos) — quando sobem, ouro SOBE ───
+  {t:'EURUSD',n:'Euro/Dolar',        p:20,c:+1,b:1.082, v:0,x:1.082, sym:'OANDA:EUR_USD',   tipo:'forex'},
+  {t:'GBPUSD',n:'Libra/Dolar',       p:14,c:+1,b:1.265, v:0,x:1.265, sym:'OANDA:GBP_USD',   tipo:'forex'},
+  {t:'AUDUSD',n:'Dolar Australiano', p:12,c:+1,b:0.637, v:0,x:0.637, sym:'OANDA:AUD_USD',   tipo:'forex'},
+  {t:'VIX',   n:'Indice Medo',       p:18,c:+1,b:18.2,  v:0,x:18.2,  sym:'VIX',             tipo:'stock'},
+  {t:'XAGUSD',n:'Prata',             p:16,c:+1,b:27.5,  v:0,x:27.5,  sym:'OANDA:XAG_USD',   tipo:'forex'},
+  {t:'USOIL', n:'Petroleo WTI',      p:12,c:+1,b:78.4,  v:0,x:78.4,  sym:'USO',             tipo:'stock'},
+  {t:'COPPER',n:'Cobre',             p:10,c:+1,b:4.15,  v:0,x:4.15,  sym:'COPX',            tipo:'stock'},
+  {t:'EMBI',  n:'Risco Emergente',   p:8, c:+1,b:185,   v:0,x:185,   sym:'OANDA:USD_BRL',   tipo:'forex'},
+  
+  // ── INDICADORES GLOBAIS (50 pontos) ─────────────────────────
+  {t:'GDX',   n:'Gold Miners ETF',   p:14,c:+1,b:28.5,  v:0,x:28.5,  sym:'GDX',             tipo:'stock'},
+  {t:'GDXJ',  n:'Junior Miners',     p:10,c:+1,b:35.2,  v:0,x:35.2,  sym:'GDXJ',            tipo:'stock'},
+  {t:'BTCUSD',n:'Bitcoin',           p:8, c:+1,b:67000, v:0,x:67000, sym:'BINANCE:BTCUSDT', tipo:'crypto'},
+  {t:'PLAT',  n:'Platina',           p:6, c:+1,b:920,   v:0,x:920,   sym:'PPLT',            tipo:'stock'},
+  {t:'DAX',   n:'DAX Alemanha',      p:5, c:-1,b:21500, v:0,x:21500, sym:'EWG',             tipo:'stock'},
+  {t:'FTSE',  n:'FTSE 100',          p:4, c:-1,b:8500,  v:0,x:8500,  sym:'EWU',             tipo:'stock'},
+  {t:'CNY',   n:'Yuan Chines',       p:3, c:+1,b:7.25,  v:0,x:7.25,  sym:'OANDA:USD_CNH',   tipo:'forex'},
+  
+  // ── YIELDS GLOBAIS (30 pontos) ──────────────────────────────
+  {t:'TNX30Y',n:'Treasury 30Y',      p:10,c:-1,b:4.82,  v:0,x:4.82,  sym:'TLT',             tipo:'stock'},
+  {t:'BUND',  n:'Bund Alemanha',     p:8, c:-1,b:2.45,  v:0,x:2.45,  sym:'EWG',             tipo:'stock'},
+  {t:'JGB',   n:'JGB Japao',         p:6, c:-1,b:1.05,  v:0,x:1.05,  sym:'EWJ',             tipo:'stock'},
+  {t:'GILT',  n:'Gilt UK',           p:6, c:-1,b:4.52,  v:0,x:4.52,  sym:'EWU',             tipo:'stock'},
+  
+  // ── COMMODITIES INFLACIONARIAS (20 pontos) ──────────────────
+  {t:'NATGAS',n:'Gas Natural',       p:6, c:+1,b:2.8,   v:0,x:2.8,   sym:'UNG',             tipo:'stock'},
+  {t:'WHEAT', n:'Trigo',             p:5, c:+1,b:5.45,  v:0,x:5.45,  sym:'WEAT',            tipo:'stock'},
+  {t:'CORN',  n:'Milho',             p:5, c:+1,b:4.25,  v:0,x:4.25,  sym:'CORN',            tipo:'stock'},
+  {t:'SOJA',  n:'Soja',              p:4, c:+1,b:12.5,  v:0,x:12.5,  sym:'SOYB',            tipo:'stock'},
+];
+
+var hist=[],dr=0,pi=null,chartOsc=null,currentView='osc',MAXH=80;
+var API_KEY='',loop=null,modoReal=false;
+var lastCross=null;
+
+// ── SOM ALERTA ─────────────────────────────────────────────────
+function playAlert(tipo){
+  try{
+    var ctx=new(window.AudioContext||window.webkitAudioContext)();
+    var osc=ctx.createOscillator();
+    var gain=ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value=tipo==='alta'?1100:550;
+    gain.gain.value=0.3;
+    osc.start();
+    setTimeout(function(){osc.stop();},150);
+  }catch(e){}
+}
+
+// ── CONEXAO ────────────────────────────────────────────────────
+async function conectar(){
+  var key=document.getElementById('apiInput').value.trim();
+  if(!key)return;
+  document.getElementById('apiBtn').textContent='TESTANDO...';
+  document.getElementById('apiErr').style.display='none';
+  try{
+    var r=await fetch('https://finnhub.io/api/v1/quote?symbol=AAPL&token='+key);
+    var d=await r.json();
+    if(!d||d.error||!d.c)throw new Error(d.error||'Chave invalida');
+    API_KEY=key;
+    localStorage.setItem('gdp_key',key);
+    modoReal=true;
+    document.getElementById('setupBox').style.display='none';
+    document.getElementById('strengthBox').style.display='flex';
+    document.getElementById('placarEl').style.display='flex';
+    document.getElementById('menuEl').style.display='flex';
+    document.getElementById('view-osc').style.display='flex';
+    document.getElementById('dot').className='dot';
+    document.getElementById('apiBtn').textContent='CONECTAR';
+    initOsc();
+    await buscarTodos();
+    iniciarLoop();
+  }catch(e){
+    var err=document.getElementById('apiErr');
+    err.style.display='block';
+    err.textContent='Erro: '+(e.message||'Verifique sua chave');
+    document.getElementById('apiBtn').textContent='CONECTAR';
+  }
+}
+
+// ── BUSCA FINNHUB ──────────────────────────────────────────────
+async function buscarAtivo(a){
+  try{
+    var url='';
+    if(a.tipo==='forex'){
+      url='https://finnhub.io/api/v1/forex/candle?symbol='+a.sym+'&resolution=D&count=2&token='+API_KEY;
+    }else if(a.tipo==='crypto'){
+      var now=Math.floor(Date.now()/1000);
+      url='https://finnhub.io/api/v1/crypto/candle?symbol='+a.sym+'&resolution=D&from='+(now-86400)+'&to='+now+'&token='+API_KEY;
+    }else{
+      url='https://finnhub.io/api/v1/quote?symbol='+encodeURIComponent(a.sym)+'&token='+API_KEY;
+    }
+    var r=await fetch(url);
+    var d=await r.json();
+    var open,close;
+    if(a.tipo==='stock'){
+      if(!d||!d.c||d.c===0)return false;
+      open=d.o||d.c; close=d.c;
+    }else{
+      if(!d||!d.c||d.s==='no_data')return false;
+      open=d.o[0]; close=d.c[d.c.length-1];
+    }
+    if(!open||open===0)open=close;
+    a.v=(close/open-1)*100;
+    a.x=close;
+    return true;
+  }catch(e){
+    a.v=a.v+(Math.random()-0.5)*0.02;
+    return false;
+  }
+}
+
+async function buscarTodos(){
+  for(var i=0;i<A.length;i++){
+    await buscarAtivo(A[i]);
+    await new Promise(function(r){setTimeout(r,120);});
+  }
+  renderizar();
+}
+
+function iniciarLoop(){
+  clearInterval(loop);
+  loop=setInterval(buscarTodos,30000);
+}
+
+// ── CALCULO PRESSAO ────────────────────────────────────────────
+function calc(){
+  var soma=0;
+  A.forEach(function(a){soma+=a.v*a.c*a.p/100;});
+  var n=hist.length;
+  var s=n>=2?(soma+hist[n-1]+hist[n-2])/3:soma;
+  if(hist.length>=MAXH)hist.shift();
+  hist.push(s);
+  return s;
+}
+
+// ── DISPLAY ────────────────────────────────────────────────────
+function display(p){
+  var v=document.getElementById('val');
+  var d=document.getElementById('dir');
+  var bd=document.body;
+  
+  v.textContent=(p>=0?'+':'')+p.toFixed(4);
+  
+  var prevP=hist.length>=2?hist[hist.length-2]:0;
+  if(lastCross!==null){
+    if(prevP<=0&&p>0.05){playAlert('alta');bd.className='press-alta alert-alta';setTimeout(function(){bd.className='press-alta';},1600);}
+    if(prevP>=0&&p<-0.05){playAlert('baixa');bd.className='press-baixa alert-baixa';setTimeout(function(){bd.className='press-baixa';},1600);}
+  }
+  lastCross=p;
+  
+  if(p>0.05){
+    v.className='hdr-val up';d.className='hdr-dir up';
+    d.textContent='▲ OURO ALTA';
+    if(!bd.className.includes('alert'))bd.className='press-alta';
+  }else if(p<-0.05){
+    v.className='hdr-val dn';d.className='hdr-dir dn';
+    d.textContent='▼ OURO BAIXA';
+    if(!bd.className.includes('alert'))bd.className='press-baixa';
+  }else{
+    v.className='hdr-val nu';d.className='hdr-dir nu';
+    d.textContent='NEUTRO';
+    bd.className='';
+  }
+}
+
+// ── STRENGTH ───────────────────────────────────────────────────
+function upStrength(p){
+  var pct=Math.min(Math.abs(p)*20,100);
+  var fill=document.getElementById('strFill');
+  var val=document.getElementById('strVal');
+  
+  fill.style.width=pct+'%';
+  if(p>0.05){
+    fill.className='str-fill up';
+    val.className='str-val up';
+    val.textContent='+'+pct.toFixed(0)+'%';
+  }else if(p<-0.05){
+    fill.className='str-fill dn';
+    val.className='str-val dn';
+    val.textContent=pct.toFixed(0)+'%';
+  }else{
+    fill.className='str-fill';
+    val.className='str-val nu';
+    val.textContent='0%';
+  }
+}
+
+function upPlacar(){
+  var up=0,dn=0,nu=0;
+  A.forEach(function(a){
+    var ef=a.v*a.c;
+    if(ef>0.01)up++; else if(ef<-0.01)dn++; else nu++;
+  });
+  document.getElementById('n-up').textContent=up;
+  document.getElementById('n-dn').textContent=dn;
+  document.getElementById('n-nu').textContent=nu;
+  var tot=A.length;
+  document.getElementById('prog-up').style.width=(up/tot*100)+'%';
+  document.getElementById('prog-dn').style.width=(dn/tot*100)+'%';
+}
+
+// ── OSCILADOR ──────────────────────────────────────────────────
+function upOsc(){
+  if(!chartOsc)return;
+  var labels=hist.map(function(_,i){return i;});
+  var verde=hist.map(function(v){return v>=0?v:null;});
+  var verm =hist.map(function(v){return v<0 ?v:null;});
+  var zero =hist.map(function(){return 0;});
+  for(var i=1;i<hist.length;i++){
+    if(hist[i-1]>=0&&hist[i]<0)verde[i]=0;
+    if(hist[i-1]<0&&hist[i]>=0)verm[i]=0;
+  }
+  chartOsc.data.labels=labels;
+  chartOsc.data.datasets[0].data=verde;
+  chartOsc.data.datasets[1].data=verm;
+  chartOsc.data.datasets[2].data=zero;
+  chartOsc.update('none');
+  updateTip();
+}
+
+function updateTip(){
+  if(!chartOsc||!chartOsc.chartArea)return;
+  var p=hist.length>0?hist[hist.length-1]:0;
+  var tip=document.getElementById('tip');
+  var yScale=chartOsc.scales.y;
+  var yPix=yScale.getPixelForValue(p);
+  var totalH=chartOsc.canvas.offsetHeight||200;
+  var pct=(yPix/totalH)*100;
+  pct=Math.max(5,Math.min(90,pct));
+  tip.style.top=pct+'%';
+  if(p>0.05){
+    tip.style.color='#00ff88';tip.style.borderColor='#00ff88';
+    tip.style.background='rgba(20,15,5,0.92)';
+    tip.textContent='+'+(p).toFixed(4);
+  }else if(p<-0.05){
+    tip.style.color='#ff2255';tip.style.borderColor='#ff2255';
+    tip.style.background='rgba(15,8,3,0.92)';
+    tip.textContent=(p).toFixed(4);
+  }else{
+    tip.style.color='#3a5060';tip.style.borderColor='#3a5060';
+    tip.style.background='rgba(10,8,5,0.92)';
+    tip.textContent='0.0000';
+  }
+}
+
+// ── BARRAS ─────────────────────────────────────────────────────
+function upBars(){
+  var el=document.getElementById('view-bar');
+  el.innerHTML='';
+  var sorted=A.slice().sort(function(a,b){return Math.abs(b.v*b.c)-Math.abs(a.v*a.c);});
+  sorted.forEach(function(a){
+    var ef=a.v*a.c;
+    var vc=ef>0.01?'pos':ef<-0.01?'neg':'neu';
+    var pct=Math.min(Math.abs(a.v)*8,48);
+    var leftPos=ef>=0?'50%':'calc(50% - '+pct+'%)';
+    el.innerHTML+='<div class="bar-row">'+
+      '<span class="bar-tk">'+a.t+'</span>'+
+      '<div class="bar-track">'+
+        '<div class="bar-zero-mark"></div>'+
+        '<div class="bar-fill '+vc+'" style="left:'+leftPos+';width:'+pct+'%"></div>'+
+      '</div>'+
+      '<span class="bar-pct '+vc+'">'+(ef>=0?'+':'')+ef.toFixed(2)+'%</span>'+
+    '</div>';
+  });
+}
+
+// ── CARDS ──────────────────────────────────────────────────────
+function upCards(){
+  var el=document.getElementById('view-cards');
+  el.innerHTML='';
+  A.forEach(function(a){
+    var co=a.v*a.c*a.p/100;
+    var ef=a.v*a.c;
+    var vc=ef>0.01?'pos':ef<-0.01?'neg':'neu';
+    el.innerHTML+='<div class="card '+vc+'">'+
+      '<div class="c-tk">'+a.t+'</div>'+
+      '<div class="c-nm">'+a.n+'</div>'+
+      '<div class="c-vr '+vc+'">'+(a.v>=0?'+':'')+a.v.toFixed(3)+'%</div>'+
+      '<div class="c-imp">impact: '+(co>=0?'+':'')+co.toFixed(4)+'</div>'+
+      '<div class="c-src">'+a.sym+'</div>'+
+    '</div>';
+  });
+}
+
+// ── STATUS ─────────────────────────────────────────────────────
+function upStatus(seg){
+  document.getElementById('lu').textContent=new Date().toLocaleTimeString('pt-BR');
+  clearInterval(pi);
+  var bar=document.getElementById('pgb');
+  bar.style.width='0%';
+  var e=0,cd=seg;
+  pi=setInterval(function(){
+    e++;cd--;
+    bar.style.width=(e/seg*100)+'%';
+    document.getElementById('nx').textContent=cd+'s';
+    if(e>=seg)clearInterval(pi);
+  },1000);
+}
+
+function renderizar(){
+  var p=calc();
+  display(p);
+  upStrength(p);
+  upPlacar();
+  if(currentView==='osc')upOsc();
+  if(currentView==='bar')upBars();
+  if(currentView==='cards')upCards();
+  upStatus(modoReal?30:5);
+}
+
+// ── SET VIEW ───────────────────────────────────────────────────
+function setView(v){
+  currentView=v;
+  document.getElementById('view-osc').style.display=v==='osc'?'flex':'none';
+  document.getElementById('view-bar').style.display=v==='bar'?'flex':'none';
+  document.getElementById('view-cards').style.display=v==='cards'?'flex':'none';
+  document.querySelectorAll('.mb').forEach(function(b,i){
+    b.className='mb'+(['osc','bar','cards'][i]===v?' on':'');
+  });
+  if(v==='osc')upOsc();
+  if(v==='bar')upBars();
+  if(v==='cards')upCards();
+}
+
+// ── INIT CHART ─────────────────────────────────────────────────
+function initOsc(){
+  if(chartOsc)return;
+  var ctx=document.getElementById('ch-osc').getContext('2d');
+  chartOsc=new Chart(ctx,{
+    type:'line',
+    data:{labels:[],datasets:[
+      {label:'Alta',data:[],borderColor:'#00ff88',
+        backgroundColor:function(c){
+          var ch=c.chart;if(!ch.chartArea)return 'rgba(0,255,136,0.15)';
+          var yZ=ch.scales.y.getPixelForValue(0);
+          var g=ch.ctx.createLinearGradient(0,ch.chartArea.top,0,yZ);
+          g.addColorStop(0,'rgba(0,255,136,0.28)');g.addColorStop(1,'rgba(0,255,136,0.02)');return g;
+        },
+        borderWidth:2.5,pointRadius:0,tension:0.35,fill:'origin',spanGaps:false},
+      {label:'Baixa',data:[],borderColor:'#ff2255',
+        backgroundColor:function(c){
+          var ch=c.chart;if(!ch.chartArea)return 'rgba(255,34,85,0.15)';
+          var yZ=ch.scales.y.getPixelForValue(0);
+          var g=ch.ctx.createLinearGradient(0,yZ,0,ch.chartArea.bottom);
+          g.addColorStop(0,'rgba(255,34,85,0.02)');g.addColorStop(1,'rgba(255,34,85,0.28)');return g;
+        },
+        borderWidth:2.5,pointRadius:0,tension:0.35,fill:'origin',spanGaps:false},
+      {label:'Zero',data:[],borderColor:'rgba(0,255,136,0.35)',backgroundColor:'transparent',
+        borderWidth:1.2,borderDash:[6,5],pointRadius:0,tension:0,fill:false}
+    ]},
+    options:{
+      responsive:true,maintainAspectRatio:false,animation:{duration:280},
+      interaction:{mode:'index',intersect:false},
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          backgroundColor:'#0f0a05',borderColor:'#1a2a3a',borderWidth:1,
+          titleColor:'#00ff88',bodyColor:'#00cc66',
+          titleFont:{family:'Share Tech Mono',size:9},bodyFont:{family:'Share Tech Mono',size:9},
+          filter:function(i){return i.datasetIndex<2&&i.raw!==null;},
+          callbacks:{
+            title:function(){return 'PRESSAO OURO';},
+            label:function(c){
+              if(c.raw===null)return null;
+              return c.raw>=0?' ▲ OURO COMPRA: +'+c.raw.toFixed(4):' ▼ OURO VENDE: '+c.raw.toFixed(4);
+            }
+          }
+        }
+      },
+      scales:{
+        x:{display:false},
+        y:{display:true,position:'right',
+          ticks:{color:'#5a7060',font:{family:'Share Tech Mono',size:8},callback:function(v){return v.toFixed(2);}},
+          grid:{
+            color:function(c){return(c.tick&&c.tick.value===0)?'rgba(0,255,136,0.15)':'rgba(42,26,10,0.8)';},
+            lineWidth:function(c){return(c.tick&&c.tick.value===0)?1.5:1;}
+          },
+          border:{display:false}
+        }
+      }
+    }
+  });
+}
+
+// ── INIT ───────────────────────────────────────────────────────
+window.onload=function(){
+  var saved=localStorage.getItem('gdp_key');
+  if(saved){document.getElementById('apiInput').value=saved;}
+  setTimeout(function(){
+    if(document.getElementById('apiInput').value.trim().length>10){
+      conectar();
+    }
+  },500);
+};
+</script>
+</body>
+</html>
